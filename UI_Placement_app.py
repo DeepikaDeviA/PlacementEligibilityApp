@@ -1,10 +1,11 @@
+#importing the necessary lib
 import streamlit as st
 import pandas as pd
 import numpy as np
 import mysql.connector
 import plotly.express as px
 
-# Set page config early
+# Set page config 
 st.set_page_config(page_title="Placement Dashboard", layout="wide")
 
 # Connect to the remote SQL database (TiDB Cloud)
@@ -20,7 +21,7 @@ cursor.execute('USE Placement_Eligibility_App')
 # Create two tabs
 tab1, tab2 = st.tabs(["Main Dashboard", "Eligibility Filter"])
 
-# ---------------- TAB 1: Dashboard ----------------
+# ---TAB 1: Dashboard ---
 with tab1:
     st.title("💼 PLACEMENT ELIGIBILITY APP")
 
@@ -71,6 +72,19 @@ with tab1:
     fig1 = px.bar(df_status_batch, x="Batch", y="Count", color="Status", barmode="stack",
                   title="Placement Status Count by Batch")
     st.plotly_chart(fig1, use_container_width=True)
+
+    # Placement Status by Gender
+    cursor.execute("""
+        SELECT s.gender, pl.placement_status, COUNT(*) AS count
+        FROM Students s
+        JOIN Placement pl ON s.student_id = pl.student_id
+        GROUP BY s.gender, pl.placement_status
+    """)
+    result = cursor.fetchall()
+    df_gender_status = pd.DataFrame(result, columns=["Gender", "Status", "Count"])
+    fig3 = px.bar(df_gender_status, x="Gender", y="Count", color="Status", barmode="group",
+                  title="Placement Status by Gender")
+    st.plotly_chart(fig3, use_container_width=True)
 
     #Programming Language Popularity (horizontal bar)
     cursor.execute("""
@@ -125,23 +139,21 @@ with tab2:
     # SQL Query with filters
     query = f"""
         SELECT 
-            s.name, s.email,
-            ROUND((
-                ss.communication + ss.teamwork + ss.leadership + 
-                ss.critical_thinking + ss.presentation + ss.interpersonal_skills
-            ) / 6, 2) AS soft_skill_avg,
-            pg.problems_solved,
-            pg.mini_projects,
-            pg.assessments_completed,
-            pl.placement_status
-        FROM Students s
-        JOIN SoftSkills ss ON s.student_id = ss.student_id
-        JOIN Programming pg ON s.student_id = pg.student_id
-        JOIN Placement pl ON s.student_id = pl.student_id
-        HAVING soft_skill_avg BETWEEN {ss_min} AND {ss_max}
-           AND problems_solved BETWEEN {prob_min} AND {prob_max}
-           AND mini_projects BETWEEN {mini_min} AND {mini_max}
-           AND assessments_completed BETWEEN {assess_min} AND {assess_max}
+        s.name, 
+        s.email,
+        ROUND(ss.soft_skill_avg) AS soft_skills_avg,
+        pg.problems_solved,
+        pg.mini_projects,
+        pg.assessments_completed,
+        pl.placement_status
+    FROM Students s
+    JOIN SoftSkills ss ON s.student_id = ss.student_id
+    JOIN Programming pg ON s.student_id = pg.student_id
+    JOIN Placement pl ON s.student_id = pl.student_id
+    WHERE ROUND(ss.soft_skill_avg) BETWEEN {ss_min} AND {ss_max}
+      AND pg.problems_solved BETWEEN {prob_min} AND {prob_max}
+      AND pg.mini_projects BETWEEN {mini_min} AND {mini_max}
+      AND pg.assessments_completed BETWEEN {assess_min} AND {assess_max}
     """
 
     try:
